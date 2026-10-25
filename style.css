@@ -173,3 +173,13 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 @keyframes pulse { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 @media (min-width: 700px) { .paper { padding-left: 40px; } .hero { font-size: 2.1rem; } }
+
+/* peer voting */
+.vote-timer { font: 700 1.3rem Georgia, serif; margin: 0 0 8px; }
+.vote-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.vote-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; margin-bottom: 8px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; }
+.vote-item .vcat { font-size: .8rem; color: var(--pencil); text-transform: uppercase; letter-spacing: .06em; }
+.vote-item .vtext { font-weight: 700; overflow-wrap: anywhere; }
+.vote-btns { display: flex; gap: 8px; }
+.vote-btns .btn { margin-top: 0; }
+.btn.small.primary { color: #fff; }

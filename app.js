@@ -12,7 +12,7 @@
   // ---------- state ----------
   let me = null, roomId = null, roomCode = null, S = null, categories = [], channel = null;
   let hbTimer = null, tickTimer = null, pollTimer = null, refreshTimer = null, toastTimer = null;
-  let clockOffset = 0, refreshSeq = 0, expiryCalledFor = null, builtRound = null;
+  let clockOffset = 0, refreshSeq = 0, expiryCalledFor = null, voteExpiryCalledFor = null, builtRound = null;
   let settingsSig = '', settingsDirty = false, currentView = 'home';
   let chat = [], unread = 0, chatOpen = false;
   const timers = {};
@@ -262,11 +262,11 @@
     if (room.status === 'closed') { toast('This room was closed.'); goHome(); return; }
     let view = 'lobby';
     if (room.status === 'playing' && S.round) view = 'game';
-    else if ((room.status === 'results' || room.status === 'finished') && S.round) view = 'results';
+    else if ((room.status === 'results' || room.status === 'finished' || room.status === 'voting') && S.round) view = 'results';
     show(view);
     $('room-pill').textContent = room.code;
     $('room-pill').hidden = false;
-    $('end-btn').hidden = !(room.host_id === me && (room.status === 'playing' || room.status === 'results'));
+    $('end-btn').hidden = !(room.host_id === me && (room.status === 'playing' || room.status === 'results' || room.status === 'voting'));
     if (view === 'lobby') renderLobby();
     else if (view === 'game') renderGame();
     else renderResults();
@@ -325,11 +325,12 @@
         el('li', { text: 'Max players: ' + room.max_players }),
         el('li', { text: 'Categories: ' + room.category_ids.map(catLabel).join(', ') }),
         el('li', { text: 'Letters: ' + room.letter_pool }),
-        el('li', { text: room.allow_repeat ? 'Letters may repeat' : 'No repeated letters until all are used' })
+        el('li', { text: room.allow_repeat ? 'Letters may repeat' : 'No repeated letters until all are used' }),
+        el('li', { text: room.peer_voting ? 'Players vote on answers not in our list (3+ players)' : 'Answers checked by our list only' })
       ));
       return;
     }
-    const sig = JSON.stringify([room.rounds_total, room.round_seconds, room.max_players, room.category_ids, room.allow_repeat, room.letter_pool, 'host']);
+    const sig = JSON.stringify([room.rounds_total, room.round_seconds, room.max_players, room.category_ids, room.allow_repeat, room.letter_pool, room.peer_voting, 'host']);
     if (sig === settingsSig || settingsDirty) return;
     settingsSig = sig;
     clear(box);
@@ -347,6 +348,9 @@
       el('label', { class: 'check', for: 's-repeat' },
         el('input', { id: 's-repeat', type: 'checkbox', checked: room.allow_repeat }),
         'Allow letters to repeat before the alphabet is used up'),
+      el('label', { class: 'check', for: 's-peer' },
+        el('input', { id: 's-peer', type: 'checkbox', checked: room.peer_voting }),
+        'Let players vote on answers that are not in our list (needs 3 or more players)'),
       el('fieldset', null,
         el('legend', { text: 'Categories' }),
         shownCats.map((c) => el('label', { class: 'check', for: 'cat-' + c.id },
@@ -368,7 +372,8 @@
       p_max: parseInt($('s-max').value, 10),
       p_categories: cats,
       p_allow_repeat: $('s-repeat').checked,
-      p_letter_pool: $('s-pool').value
+      p_letter_pool: $('s-pool').value,
+      p_peer_voting: $('s-peer').checked
     });
     if (r.ok) { settingsDirty = false; settingsSig = ''; toast('Settings saved', 'ok'); refresh(); }
   }
@@ -476,7 +481,11 @@
     if (over && expiryCalledFor !== rd.id) { expiryCalledFor = rd.id; endIfExpired(rd.id); }
   }
 
-  function tick() { updateGameDynamic(); }
+  function tick() {
+    if (!S) return;
+    if (S.room.status === 'voting') updateVoteTimer();
+    else updateGameDynamic();
+  }
 
   async function endIfExpired(rid) {
     await rpc('end_round_if_expired', { p_round_id: rid }, { silent: true });
@@ -503,6 +512,14 @@
 
   function renderResults() {
     const rd = S.round, g = S.game, room = S.room, isHost = room.host_id === me;
+    if (room.status === 'voting' && S.voting) {
+      $('res-body').hidden = true; $('winner-banner').hidden = true; $('vote-card').hidden = false;
+      $('res-title').textContent = (rd.is_tiebreaker ? 'Tiebreaker' : 'Round ' + rd.round_number + ' of ' + g.rounds_total) + '. Letter ' + rd.letter;
+      $('res-sub').textContent = (rd.end_reason === 'submission' ? nick(rd.ended_by) + ' submitted first' : 'Time ran out') + '. Answers are locked. Time to vote.';
+      renderVoting();
+      return;
+    }
+    $('vote-card').hidden = true; $('res-body').hidden = false;
     const title = rd.is_tiebreaker ? 'Tiebreaker' : 'Round ' + rd.round_number + ' of ' + g.rounds_total;
     $('res-title').textContent = title + ' results. Letter ' + rd.letter;
     $('res-sub').textContent = (rd.end_reason === 'submission' ? nick(rd.ended_by) + ' submitted first'
@@ -520,7 +537,7 @@
           let cls = 'bad', status = '✗ Not recognized (0)';
           if (blank) status = '✗ Blank (0)';
           else if (a.valid && a.duplicate) { cls = 'dup'; status = '= Duplicate (0)'; }
-          else if (a.valid) { cls = 'ok'; status = '✓ Correct +' + a.points; }
+          else if (a.valid) { cls = 'ok'; status = (a.by_vote ? '✓ Accepted by vote +' : '✓ Correct +') + a.points; }
           else if (!clientLetterOk(a.answer, rd.letter)) status = '✗ Wrong letter (0)';
           ul.append(el('li', { class: 'res-row ' + cls },
             el('div', null, el('div', { class: 'who', text: nick(uid) + (uid === me ? ' (you)' : '') }),
@@ -563,6 +580,43 @@
       $('rematch-text').textContent = yes + ' of ' + S.members.length + ' players want a rematch. It starts when more than half vote yes and the host is still in the room.'
         + (mine ? ' You voted ' + (mine.vote ? 'yes.' : 'no.') : '');
     }
+  }
+
+  function renderVoting() {
+    const v = S.voting, ul = $('vote-list');
+    clear(ul);
+    for (const it of v.items) {
+      const controls = it.mine
+        ? el('span', { class: 'tag', text: 'Your answer' })
+        : el('div', { class: 'vote-btns' },
+            el('button', { class: 'btn small ' + (it.my_vote === true ? 'primary' : 'secondary'), type: 'button',
+              'aria-pressed': String(it.my_vote === true), text: '✓ Accept', onclick: () => castVote(it, true) }),
+            el('button', { class: 'btn small ' + (it.my_vote === false ? 'danger' : 'secondary'), type: 'button',
+              'aria-pressed': String(it.my_vote === false), text: '✗ Reject', onclick: () => castVote(it, false) }));
+      ul.append(el('li', { class: 'vote-item' },
+        el('div', null, el('div', { class: 'vcat', text: catLabel(it.category_id) }), el('div', { class: 'vtext', text: it.text })),
+        controls));
+    }
+    if (!v.items.length) ul.append(el('li', { class: 'muted', text: 'Nothing to vote on.' }));
+    $('vote-progress').textContent = v.cast + ' of ' + v.expected + ' votes cast. Voting ends early when everyone has voted.';
+    updateVoteTimer();
+  }
+
+  function updateVoteTimer() {
+    if (!S || !S.voting) return;
+    const left = Math.ceil((Date.parse(S.voting.ends_at) - serverNow()) / 1000);
+    $('vote-timer').textContent = left > 0 ? 'Voting closes in ' + fmt(left) : 'Counting the votes…';
+    if (left <= 0 && voteExpiryCalledFor !== S.round.id) {
+      const rid = S.round.id;
+      voteExpiryCalledFor = rid;
+      rpc('end_round_if_expired', { p_round_id: rid }, { silent: true }).then(refresh);
+      setTimeout(() => { if (S && S.room.status === 'voting' && S.round.id === rid) voteExpiryCalledFor = null; }, 1500);
+    }
+  }
+
+  async function castVote(it, v) {
+    await rpc('cast_vote', { p_round_id: S.round.id, p_category_id: it.category_id, p_norm: it.norm, p_vote: v });
+    await refresh();
   }
 
   $('next-btn').addEventListener('click', () => withBusy($('next-btn'), async () => {

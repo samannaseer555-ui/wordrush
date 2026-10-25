@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#fbf7ec">
   <title>WordRush: Think fast. Write smart. Win together.</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <header class="top">
@@ -122,6 +122,15 @@
       <div id="winner-banner" class="winner" hidden></div>
       <h2 id="res-title"></h2>
       <p id="res-sub" class="muted"></p>
+      <div id="vote-card" class="card" hidden>
+        <h2>Vote on answers not in our list</h2>
+        <p class="muted">Is each answer real and in the right category? It counts if it gets at least 2 yes votes and more yes than no. You cannot vote on your own answers.</p>
+        <p id="vote-timer" class="vote-timer"></p>
+        <ul id="vote-list" class="vote-list"></ul>
+        <p id="vote-progress" class="muted"></p>
+      </div>
+
+      <div id="res-body">
       <div id="res-cats"></div>
 
       <div class="card">
@@ -145,6 +154,7 @@
           <button id="vote-no" class="btn secondary">No thanks</button>
         </div>
       </div>
+      </div>
     </section>
   </main>
 
@@ -165,7 +175,7 @@
   <div id="toast" class="toast" role="alert" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.93.2/dist/umd/supabase.js"></script>
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=2"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
