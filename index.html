@@ -5,12 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#fbf7ec">
   <title>WordRush: Think fast. Write smart. Win together.</title>
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
-  <header class="top">
-    <div class="wordmark" aria-label="WordRush">Word<span>Rush</span></div>
-    <span id="room-pill" class="pill" hidden></span>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#26283a" stroke-opacity=".16" stroke-width="2"/>
+      </pattern>
+    </defs>
+  </svg>
+
+  <header id="topbar" class="top" hidden>
+    <svg class="logo top-logo" viewBox="0 0 270 72" role="img" aria-label="WordRush">
+      <text x="4" y="44" class="logo-text">Word<tspan class="logo-blue">Rush</tspan></text>
+      <g transform="translate(6,54)">
+        <rect width="14" height="10" fill="#e39a9a"/>
+        <rect x="14" width="8" height="10" fill="#b8bcc6"/>
+        <rect x="22" width="120" height="10" fill="#f2c230"/>
+        <polygon points="142,0 166,5 142,10" fill="#e8c9a0"/>
+        <polygon points="160,3.5 166,5 160,6.5" fill="#26283a"/>
+        <path d="M166 5 q7 -5 14 0 t14 0 t14 0 t14 0" fill="none" stroke="#5a5f73" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+    </svg>
     <div class="top-actions">
       <button id="end-btn" class="btn small danger" hidden>End game</button>
       <button id="leave-btn" class="btn small secondary" hidden>Leave</button>
@@ -23,45 +40,68 @@
 
     <!-- HOME -->
     <section id="view-home">
-      <h1 class="hero">Think fast. Write smart. Win together.</h1>
-      <p class="lead">A notebook word race for friends. Everyone gets the same letter. Fill every category before anyone else.</p>
+      <div class="hero-wrap">
+        <svg class="logo hero-logo" viewBox="0 0 270 72" role="img" aria-label="WordRush">
+          <text x="4" y="44" class="logo-text">Word<tspan class="logo-blue">Rush</tspan></text>
+          <g transform="translate(6,54)">
+            <rect width="14" height="10" fill="#e39a9a"/>
+            <rect x="14" width="8" height="10" fill="#b8bcc6"/>
+            <rect x="22" width="120" height="10" fill="#f2c230"/>
+            <polygon points="142,0 166,5 142,10" fill="#e8c9a0"/>
+            <polygon points="160,3.5 166,5 160,6.5" fill="#26283a"/>
+            <path d="M166 5 q7 -5 14 0 t14 0 t14 0 t14 0" fill="none" stroke="#5a5f73" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+        </svg>
+        <p class="tagline">Think fast. Write smart. Win together.</p>
+      </div>
 
-      <div class="card">
+      <div class="card home-card">
         <label for="nick-input">Your nickname</label>
         <input id="nick-input" type="text" maxlength="20" autocomplete="off" placeholder="e.g. Sara">
 
+        <p class="small-label pick-label">Pick your look</p>
+        <div class="picker">
+          <div class="arrows">
+            <button class="arrow" data-part="0" data-dir="-1" aria-label="Previous colour">‹</button>
+            <button class="arrow" data-part="1" data-dir="-1" aria-label="Previous eyes">‹</button>
+            <button class="arrow" data-part="2" data-dir="-1" aria-label="Previous mouth">‹</button>
+          </div>
+          <div id="avatar-stage" class="stage" role="img" aria-label="Your avatar"></div>
+          <div class="arrows">
+            <button class="arrow" data-part="0" data-dir="1" aria-label="Next colour">›</button>
+            <button class="arrow" data-part="1" data-dir="1" aria-label="Next eyes">›</button>
+            <button class="arrow" data-part="2" data-dir="1" aria-label="Next mouth">›</button>
+          </div>
+          <button id="dice-btn" class="dice" aria-label="Random avatar" title="Random avatar">🎲</button>
+        </div>
+
         <button id="create-btn" class="btn primary big">Create Room</button>
 
-        <div class="or"><span>or join a friend</span></div>
-
-        <label for="code-input">Room code</label>
-        <input id="code-input" type="text" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="e.g. K7MQ2">
-        <button id="join-btn" class="btn secondary big">Join Room</button>
-
-        <div id="join-preview" class="preview" hidden>
-          <p id="join-preview-text"></p>
-          <button id="join-confirm" class="btn primary big">Join now</button>
+        <button id="show-join" class="link-btn" aria-expanded="false" aria-controls="join-box">Have a code? Join a room</button>
+        <div id="join-box" class="join-box" hidden>
+          <label for="code-input">Room code</label>
+          <input id="code-input" type="text" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="e.g. K7MQ2">
+          <button id="join-btn" class="btn secondary big">Find room</button>
+          <div id="join-preview" class="preview" hidden>
+            <p id="join-preview-text"></p>
+            <button id="join-confirm" class="btn primary big">Join now</button>
+          </div>
         </div>
       </div>
 
-      <div class="card">
-        <h2>Quick rules</h2>
-        <ul class="rules">
-          <li>Each round shows one random letter. Write an answer that starts with it for every category.</li>
-          <li>The first player to submit ends the round for everyone, and all answers lock.</li>
-          <li>A correct answer that nobody else wrote scores <strong>10 points</strong>.</li>
-          <li>Duplicates, wrong letters and answers not in our list score <strong>0</strong>.</li>
-        </ul>
-        <details class="how">
-          <summary class="btn secondary">Full instructions</summary>
-          <div class="how-body">
-            <p><strong>Every box must be filled</strong> before you can submit. A wrong answer can still be submitted, but it earns nothing.</p>
-            <p>Answers are checked against a fixed answer list for each category, not by guesswork. Real answers that are missing from the list score zero in this version.</p>
-            <p>If two or more players write the same answer (spelling and capital letters do not matter), nobody gets points for it.</p>
-            <p>After the last round the highest total wins. If players tie, a tiebreaker round decides it. Then everyone can vote on a rematch.</p>
-          </div>
-        </details>
-      </div>
+      <details class="card how">
+        <summary>How to play</summary>
+        <div class="how-body">
+          <ul class="rules">
+            <li>Each round shows one random letter. Write an answer starting with it for every category.</li>
+            <li>The first player to submit ends the round for everyone, and all answers lock.</li>
+            <li>A correct answer that nobody else wrote scores <strong>10 points</strong>.</li>
+            <li>Duplicates, wrong letters and answers not in our list score <strong>0</strong>, unless the host turns on voting and your friends accept it.</li>
+            <li>Every box must be filled before you can submit. There is no time limit, so be quick!</li>
+            <li>After the last round the highest total wins. Ties are settled with a tiebreaker round, then everyone can vote on a rematch.</li>
+          </ul>
+        </div>
+      </details>
     </section>
 
     <!-- LOBBY -->
@@ -94,11 +134,10 @@
       <div class="game-head">
         <div>
           <p id="game-round" class="small-label"></p>
-          <div id="timer" class="timer" role="timer">0:00</div>
+          <div id="timer" class="timer" role="timer" aria-label="Time so far">0:00</div>
         </div>
         <div id="game-letter" class="letter" aria-label="Current letter"></div>
       </div>
-      <div class="bar"><div id="bar-fill" class="bar-fill"></div></div>
 
       <div id="countdown" class="countdown" hidden>
         <span>Get ready</span><strong id="countdown-num">5</strong>
@@ -122,6 +161,7 @@
       <div id="winner-banner" class="winner" hidden></div>
       <h2 id="res-title"></h2>
       <p id="res-sub" class="muted"></p>
+
       <div id="vote-card" class="card" hidden>
         <h2>Vote on answers not in our list</h2>
         <p class="muted">Is each answer real and in the right category? It counts if it gets at least 2 yes votes and more yes than no. You cannot vote on your own answers.</p>
@@ -131,29 +171,29 @@
       </div>
 
       <div id="res-body">
-      <div id="res-cats"></div>
+        <div id="res-cats"></div>
 
-      <div class="card">
-        <h2>This round</h2>
-        <ol id="round-board" class="board"></ol>
-      </div>
-      <div class="card">
-        <h2>Overall scores</h2>
-        <ol id="total-board" class="board"></ol>
-      </div>
-
-      <div id="tie-note" class="notice" hidden></div>
-      <button id="next-btn" class="btn primary big" hidden>Next round</button>
-      <p id="wait-host" class="muted" hidden>Waiting for the host to continue…</p>
-
-      <div id="rematch" class="card" hidden>
-        <h2>Play again?</h2>
-        <p id="rematch-text" class="muted"></p>
-        <div class="row">
-          <button id="vote-yes" class="btn primary">Rematch</button>
-          <button id="vote-no" class="btn secondary">No thanks</button>
+        <div class="card">
+          <h2>This round</h2>
+          <ol id="round-board" class="board"></ol>
         </div>
-      </div>
+        <div class="card">
+          <h2>Overall scores</h2>
+          <ol id="total-board" class="board"></ol>
+        </div>
+
+        <div id="tie-note" class="notice" hidden></div>
+        <button id="next-btn" class="btn primary big" hidden>Next round</button>
+        <p id="wait-host" class="muted" hidden>Waiting for the host to continue…</p>
+
+        <div id="rematch" class="card" hidden>
+          <h2>Play again?</h2>
+          <p id="rematch-text" class="muted"></p>
+          <div class="row">
+            <button id="vote-yes" class="btn primary">Rematch</button>
+            <button id="vote-no" class="btn secondary">No thanks</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -172,10 +212,22 @@
     </div>
   </div>
 
+  <!-- CONFIRM DIALOG -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-text">
+      <h2 id="modal-title"></h2>
+      <p id="modal-text" class="muted"></p>
+      <div class="row">
+        <button id="modal-cancel" class="btn secondary" type="button">Stay</button>
+        <button id="modal-ok" class="btn primary" type="button">Leave</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="alert" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.93.2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=2"></script>
-  <script src="app.js?v=2"></script>
+  <script src="config.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

@@ -51,6 +51,84 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 4500);
   }
 
+  // ---------- avatars (drawn from 3 small numbers, e.g. "2.5.1": colour, eyes, mouth) ----------
+  const INK = '#26283a';
+  const AV_COLORS = ['#e8a0a0', '#f0c58a', '#f2dc7c', '#a9d3a0', '#8fcfd0', '#9db7e0', '#c3a6d9', '#e3b4cf'];
+  const EYES = [
+    `<circle cx="39" cy="42" r="3.2" fill="${INK}"/><circle cx="61" cy="42" r="3.2" fill="${INK}"/>`,
+    `<path d="M33 44 q6 -8 12 0"/><path d="M55 44 q6 -8 12 0"/>`,
+    `<circle cx="39" cy="42" r="6" fill="#fff"/><circle cx="61" cy="42" r="6" fill="#fff"/><circle cx="40" cy="43" r="2.4" fill="${INK}" stroke="none"/><circle cx="62" cy="43" r="2.4" fill="${INK}" stroke="none"/>`,
+    `<path d="M33 43 h12"/><path d="M55 43 h12"/>`,
+    `<circle cx="39" cy="42" r="3.2" fill="${INK}"/><path d="M55 43 h12"/>`,
+    `<circle cx="39" cy="44" r="3" fill="${INK}"/><circle cx="61" cy="44" r="3" fill="${INK}"/><path d="M32 35 l12 5"/><path d="M68 35 l-12 5"/>`,
+    `<rect x="31" y="36" width="17" height="11" rx="3" fill="${INK}"/><rect x="52" y="36" width="17" height="11" rx="3" fill="${INK}"/><path d="M48 40 h4"/>`,
+    `<path d="M34 37 l9 9 m0 -9 l-9 9"/><path d="M57 37 l9 9 m0 -9 l-9 9"/>`
+  ];
+  const MOUTHS = [
+    `<path d="M39 56 q11 11 22 0"/>`,
+    `<path d="M41 60 h18"/>`,
+    `<ellipse cx="50" cy="60" rx="6" ry="5" fill="${INK}"/>`,
+    `<path d="M39 56 q11 11 22 0"/><path d="M46 62 q4 8 8 0" fill="#e39a9a"/>`,
+    `<path d="M41 60 q9 6 19 -4"/>`,
+    `<path d="M39 63 q11 -10 22 0"/>`,
+    `<path d="M38 58 l4 5 l4 -5 l4 5 l4 -5 l4 5 l4 -5"/>`,
+    `<circle cx="50" cy="61" r="4"/>`
+  ];
+  const SHOULDERS = 'M10 100 Q10 72 50 72 Q90 72 90 100 Z';
+
+  function parseAv(code) {
+    const m = /^(\d{1,2})\.(\d{1,2})\.(\d{1,2})$/.exec(code || '');
+    const a = m ? [+m[1], +m[2], +m[3]] : [0, 0, 0];
+    return a.map((n) => ((n % 8) + 8) % 8);
+  }
+
+  function avatarEl(code, size) {
+    const [c, e, m] = parseAv(code);
+    const col = AV_COLORS[c];
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('class', 'avatar');
+    svg.setAttribute('aria-hidden', 'true');
+    // Only fixed drawing strings and numbers from the lists above are used here, never player text.
+    svg.innerHTML =
+      `<path d="${SHOULDERS}" fill="${col}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>` +
+      `<path d="${SHOULDERS}" fill="url(#hatch)"/>` +
+      `<circle cx="50" cy="44" r="30" fill="${col}" stroke="${INK}" stroke-width="3"/>` +
+      `<circle cx="50" cy="44" r="30" fill="url(#hatch)"/>` +
+      `<g fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${EYES[e]}${MOUTHS[m]}</g>`;
+    return svg;
+  }
+  const avFor = (uid) => avatarEl((S && S.avatars && S.avatars[uid]) || '0.0.0', 26);
+
+  // ---------- friendly confirm dialog (replaces the plain browser popup) ----------
+  function confirmBox(title, text, okLabel, cancelLabel, danger) {
+    return new Promise((resolve) => {
+      $('modal-title').textContent = title;
+      $('modal-text').textContent = text;
+      const ok = $('modal-ok'), cancel = $('modal-cancel');
+      ok.textContent = okLabel;
+      cancel.textContent = cancelLabel;
+      ok.classList.toggle('danger-solid', !!danger);
+      $('modal').hidden = false;
+      cancel.focus();
+      const finish = (v) => {
+        $('modal').hidden = true;
+        ok.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKey);
+        resolve(v);
+      };
+      const onOk = () => finish(true);
+      const onCancel = () => finish(false);
+      const onKey = (e) => { if (e.key === 'Escape') finish(false); };
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKey);
+    });
+  }
+
   function friendly(error) {
     const m = (error && error.message) || '';
     if (/failed to fetch|network|load failed/i.test(m)) return 'Cannot reach the server. Check your internet connection.';
@@ -77,6 +155,7 @@
   function show(view) {
     for (const v of ['home', 'lobby', 'game', 'results']) $('view-' + v).hidden = v !== view;
     $('chat').hidden = view === 'home';
+    $('topbar').hidden = view === 'home';
     $('leave-btn').hidden = view === 'home';
     if (view !== currentView) { window.scrollTo(0, 0); currentView = view; }
   }
@@ -101,7 +180,8 @@
     show('home');
     $('nick-input').value = localStorage.getItem('wordrush_nick') || '';
     const invited = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
-    if (invited) $('code-input').value = invited;
+    if (invited) { $('code-input').value = invited; openJoinBox(); }
+    drawStage();
 
     try { await ensureUser(); }
     catch (e) {
@@ -134,7 +214,7 @@
 
   $('create-btn').addEventListener('click', () => withBusy($('create-btn'), async () => {
     const n = getNick(); if (!n) return;
-    const r = await rpc('create_room', { p_nickname: n });
+    const r = await rpc('create_room', { p_nickname: n, p_avatar: avCode() });
     if (r.ok) await enterRoom(r.room_id, r.code);
   }));
 
@@ -155,11 +235,40 @@
   $('join-confirm').addEventListener('click', () => withBusy($('join-confirm'), async () => {
     const n = getNick(); if (!n) return;
     const code = $('code-input').value.trim().toUpperCase();
-    const r = await rpc('join_room', { p_code: code, p_nickname: n });
+    const r = await rpc('join_room', { p_code: code, p_nickname: n, p_avatar: avCode() });
     if (r.ok) await enterRoom(r.room_id, r.code);
   }));
 
   $('code-input').addEventListener('input', () => { $('join-preview').hidden = true; });
+
+  // ---------- avatar picker ----------
+  const rand8 = () => Math.floor(Math.random() * 8);
+  const savedAv = localStorage.getItem('wordrush_avatar');
+  let av = /^\d{1,2}\.\d{1,2}\.\d{1,2}$/.test(savedAv || '') ? parseAv(savedAv) : [rand8(), rand8(), rand8()];
+  const avCode = () => av.join('.');
+  function drawStage() {
+    const st = $('avatar-stage');
+    clear(st);
+    st.append(avatarEl(avCode(), 150));
+    localStorage.setItem('wordrush_avatar', avCode());
+  }
+  document.querySelectorAll('.arrow').forEach((b) => b.addEventListener('click', () => {
+    const p = +b.dataset.part, d = +b.dataset.dir;
+    av[p] = (av[p] + d + 8) % 8;
+    drawStage();
+  }));
+  $('dice-btn').addEventListener('click', () => { av = [rand8(), rand8(), rand8()]; drawStage(); });
+
+  function openJoinBox() {
+    $('join-box').hidden = false;
+    $('show-join').setAttribute('aria-expanded', 'true');
+  }
+  $('show-join').addEventListener('click', () => {
+    const open = $('join-box').hidden;
+    $('join-box').hidden = !open;
+    $('show-join').setAttribute('aria-expanded', String(open));
+    if (open) $('code-input').focus();
+  });
 
   // ---------- entering / leaving a room ----------
   async function enterRoom(id, code) {
@@ -179,7 +288,6 @@
     roomId = null; roomCode = null; S = null; builtRound = null;
     localStorage.removeItem('wordrush_room');
     history.replaceState(null, '', location.pathname);
-    $('room-pill').hidden = true;
     $('end-btn').hidden = true;
     $('conn').hidden = true;
     $('join-preview').hidden = true;
@@ -187,13 +295,13 @@
   }
 
   $('leave-btn').addEventListener('click', async () => {
-    if (!confirm('Leave this room?')) return;
+    if (!(await confirmBox('Leave this room?', 'You can come back with the room code while the room is still open.', 'Leave', 'Stay', true))) return;
     await rpc('leave_room', { p_room_id: roomId }, { silent: true });
     goHome();
   });
 
   $('end-btn').addEventListener('click', async () => {
-    if (!confirm('End the game for everyone and return to the lobby?')) return;
+    if (!(await confirmBox('End the game?', 'The game stops for everyone and the room goes back to the lobby.', 'End game', 'Keep playing', true))) return;
     const r = await rpc('cancel_game', { p_room_id: roomId });
     if (r.ok) { builtRound = null; refresh(); }
   });
@@ -223,9 +331,16 @@
     heartbeat();
     hbTimer = setInterval(heartbeat, 10000);
     tickTimer = setInterval(tick, 250);
-    pollTimer = setInterval(refresh, 12000);
+    schedulePoll();
   }
-  function stopTimers() { clearInterval(hbTimer); clearInterval(tickTimer); clearInterval(pollTimer); clearTimeout(refreshTimer); }
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      await refresh();
+      if (roomId) schedulePoll();
+    }, S && (S.room.status === 'playing' || S.room.status === 'voting') ? 3000 : 12000);
+  }
+  function stopTimers() { clearInterval(hbTimer); clearInterval(tickTimer); clearTimeout(pollTimer); clearTimeout(refreshTimer); }
 
   async function heartbeat() {
     if (!roomId) return;
@@ -264,8 +379,6 @@
     if (room.status === 'playing' && S.round) view = 'game';
     else if ((room.status === 'results' || room.status === 'finished' || room.status === 'voting') && S.round) view = 'results';
     show(view);
-    $('room-pill').textContent = room.code;
-    $('room-pill').hidden = false;
     $('end-btn').hidden = !(room.host_id === me && (room.status === 'playing' || room.status === 'results' || room.status === 'voting'));
     if (view === 'lobby') renderLobby();
     else if (view === 'game') renderGame();
@@ -277,6 +390,7 @@
     for (const m of S.members) {
       const p = showSubmitted ? S.players.find((x) => x.user_id === m.user_id) : null;
       ul.append(el('li', null,
+        avatarEl(m.avatar, 36),
         el('span', { class: 'dot' + (m.connected ? ' on' : ''), role: 'img', 'aria-label': m.connected ? 'Connected' : 'Offline' }),
         el('span', { class: 'grow', text: m.nickname + (m.user_id === me ? ' (you)' : '') }),
         m.is_host ? el('span', { class: 'tag', text: 'Host' }) : null,
@@ -321,7 +435,6 @@
       clear(box);
       box.append(el('ul', { class: 'summary-list' },
         el('li', { text: 'Rounds: ' + room.rounds_total }),
-        el('li', { text: 'Seconds per round: ' + room.round_seconds }),
         el('li', { text: 'Max players: ' + room.max_players }),
         el('li', { text: 'Categories: ' + room.category_ids.map(catLabel).join(', ') }),
         el('li', { text: 'Letters: ' + room.letter_pool }),
@@ -330,7 +443,7 @@
       ));
       return;
     }
-    const sig = JSON.stringify([room.rounds_total, room.round_seconds, room.max_players, room.category_ids, room.allow_repeat, room.letter_pool, room.peer_voting, 'host']);
+    const sig = JSON.stringify([room.rounds_total, room.max_players, room.category_ids, room.allow_repeat, room.letter_pool, room.peer_voting, 'host']);
     if (sig === settingsSig || settingsDirty) return;
     settingsSig = sig;
     clear(box);
@@ -340,7 +453,6 @@
     ];
     const form = el('form', { class: 'settings-form', onsubmit: saveSettings },
       num('s-rounds', 'Number of rounds (1 to 26)', room.rounds_total, 1, 26),
-      num('s-seconds', 'Seconds per round (20 to 300)', room.round_seconds, 20, 300),
       num('s-max', 'Maximum players (2 to 20)', room.max_players, 2, 20),
       el('label', { for: 's-pool', text: 'Letters to use' }),
       el('input', { id: 's-pool', type: 'text', maxlength: '26', value: room.letter_pool, autocapitalize: 'characters', autocomplete: 'off' }),
@@ -368,7 +480,6 @@
     const r = await rpc('update_settings', {
       p_room_id: roomId,
       p_rounds: parseInt($('s-rounds').value, 10),
-      p_seconds: parseInt($('s-seconds').value, 10),
       p_max: parseInt($('s-max').value, 10),
       p_categories: cats,
       p_allow_repeat: $('s-repeat').checked,
@@ -423,7 +534,7 @@
     setFb(cat, '', '');
     input.classList.remove('invalid');
     debounce('chk-' + cat, () => checkField(cat, input), 500);
-    debounce('draft', saveDraft, 700);
+    debounce('draft', saveDraft, 400);
     updateGameDynamic();
   }
 
@@ -460,10 +571,7 @@
 
     $('countdown').hidden = !counting;
     if (counting) $('countdown-num').textContent = Math.max(1, Math.ceil((start - now) / 1000));
-    const secs = Math.max(0, Math.ceil((end - Math.max(now, start)) / 1000));
-    $('timer').textContent = fmt(secs);
-    $('timer').classList.toggle('low', !counting && secs <= 10);
-    $('bar-fill').style.width = (counting ? 100 : Math.max(0, Math.min(100, ((end - now) / (end - start)) * 100))) + '%';
+    $('timer').textContent = fmt(Math.max(0, Math.floor((now - start) / 1000)));
 
     const locked = !mine || submitted || counting || over;
     document.querySelectorAll('#answers input').forEach((i) => { i.disabled = locked; });
@@ -474,7 +582,7 @@
     $('submit-hint').textContent = !mine ? 'You are watching this round.'
       : submitted ? 'Submitted. Waiting for the round to finish…'
       : counting ? 'Get ready. Typing starts in a moment.'
-      : over ? 'Time is up. Answers are locked.'
+      : over ? 'The round hit its safety limit. Answers are locked.'
       : missing.length ? 'Still needed: ' + missing.map(catLabel).join(', ')
       : 'Ready to submit. The first submission ends the round for everyone.';
 
@@ -540,7 +648,7 @@
           else if (a.valid) { cls = 'ok'; status = (a.by_vote ? '✓ Accepted by vote +' : '✓ Correct +') + a.points; }
           else if (!clientLetterOk(a.answer, rd.letter)) status = '✗ Wrong letter (0)';
           ul.append(el('li', { class: 'res-row ' + cls },
-            el('div', null, el('div', { class: 'who', text: nick(uid) + (uid === me ? ' (you)' : '') }),
+            el('div', null, el('div', { class: 'who' }, avFor(uid), nick(uid) + (uid === me ? ' (you)' : '')),
               el('div', { class: 'ans', text: blank ? '(no answer)' : a.answer })),
             el('div', { class: 'status', text: status })));
         }
@@ -550,11 +658,11 @@
 
     const rb = $('round-board'); clear(rb);
     [...S.players].sort((a, b) => (b.round_score || 0) - (a.round_score || 0)).forEach((p) => {
-      rb.append(el('li', null, nick(p.user_id) + (p.user_id === me ? ' (you)' : ''), el('span', { class: 'pts', text: (p.round_score || 0) + ' pts' })));
+      rb.append(el('li', null, avFor(p.user_id), el('span', { class: 'grow', text: nick(p.user_id) + (p.user_id === me ? ' (you)' : '') }), el('span', { class: 'pts', text: (p.round_score || 0) + ' pts' })));
     });
     const tb = $('total-board'); clear(tb);
     S.totals.forEach((t) => {
-      tb.append(el('li', null, nick(t.user_id) + (t.user_id === me ? ' (you)' : ''), el('span', { class: 'pts', text: t.total + ' pts' })));
+      tb.append(el('li', null, avFor(t.user_id), el('span', { class: 'grow', text: nick(t.user_id) + (t.user_id === me ? ' (you)' : '') }), el('span', { class: 'pts', text: t.total + ' pts' })));
     });
 
     const finished = room.status === 'finished';
@@ -562,7 +670,9 @@
     wb.hidden = !finished;
     if (finished) {
       const names = (g.winner_ids || []).map(nick);
-      wb.textContent = '🏆 ' + (names.length > 1 ? 'Winners: ' : 'Winner: ') + names.join(' & ');
+      clear(wb);
+      wb.append(el('div', { class: 'wrow' }, (g.winner_ids || []).map((u) => avatarEl((S.avatars || {})[u], 64))),
+        el('div', { text: '🏆 ' + (names.length > 1 ? 'Winners: ' : 'Winner: ') + names.join(' & ') }));
     }
 
     const tie = !finished && (rd.is_tiebreaker || rd.round_number >= g.rounds_total);
