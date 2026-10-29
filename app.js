@@ -741,7 +741,8 @@
     const items = assigned || v.items;
     for (const it of items) {
       const own = !assigned && it.mine;
-      const who = assigned && it.author_ids ? it.author_ids.map(nick).join(' & ') : '';
+      const others = assigned && it.author_ids ? it.author_ids.filter((u) => u !== me) : [];
+      const who = assigned && it.author_ids ? (others.length ? others : it.author_ids).map(nick).join(' & ') : '';
       const controls = own
         ? el('span', { class: 'tag', text: 'Your answer' })
         : el('div', { class: 'vote-btns' },
