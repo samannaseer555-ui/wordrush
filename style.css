@@ -113,6 +113,9 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .settings-form fieldset { border: 1.5px solid var(--pencil); border-radius: 10px; margin: 12px 0 0; padding: 8px 12px; }
 .check { display: flex; align-items: center; gap: 10px; font-weight: 500; margin: 8px 0; }
 .hint { font-size: .85rem; color: var(--pencil); margin: 2px 0 0; }
+.seg { display: flex; gap: 8px; margin: 6px 0 4px; }
+.seg-btn { flex: 1; min-height: 48px; font: inherit; font-size: 1.1rem; font-weight: 700; color: var(--ink); background: #fff; border: 2px solid var(--pencil); border-radius: 10px; cursor: pointer; }
+.seg-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent-dark); color: #fff; }
 .summary-list { list-style: none; margin: 0; padding: 0; }
 .summary-list li { padding: 4px 0; border-bottom: 1px dashed var(--line); }
 

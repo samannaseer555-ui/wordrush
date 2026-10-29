@@ -14,6 +14,7 @@
   let hbTimer = null, tickTimer = null, pollTimer = null, refreshTimer = null, toastTimer = null;
   let clockOffset = 0, clockSet = false, refreshSeq = 0, expiryCalledFor = null, voteExpiryCalledFor = null, builtRound = null;
   let settingsSig = '', settingsDirty = false, currentView = 'home';
+  let savePending = null, settingsVer = 0, normalizedFor = null;
   let chat = [], unread = 0, chatOpen = false;
   const timers = {};
 
@@ -39,6 +40,11 @@
   const serverNow = () => Date.now() + clockOffset;
   const fmt = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   const catLabel = (id) => (categories.find((c) => c.id === id) || {}).label || id;
+  // Always the same fixed order as the category list, whatever order the host ticked them in.
+  const orderCats = (ids) => {
+    const known = categories.filter((c) => ids.includes(c.id)).map((c) => c.id);
+    return known.concat(ids.filter((i) => !known.includes(i)));
+  };
   const nick = (uid) => (S && S.nicknames && S.nicknames[uid]) || 'Player';
   const inviteLink = (code) => location.origin + location.pathname + '?room=' + code;
 
@@ -224,7 +230,7 @@
     if (!code) { toast('Enter a room code.'); return; }
     const r = await rpc('get_room_by_code', { p_code: code });
     if (!r.ok) return;
-    let text = 'Room ' + r.code + '. Host: ' + (r.host || 'unknown') + '. Players: ' + r.players + '/' + r.max_players + '.';
+    let text = 'Room ' + r.code + '. Host: ' + (r.host || 'unknown') + '. Players: ' + r.players + '.';
     if (r.status !== 'lobby') text += ' A game is already in progress (only players who were already in it can rejoin).';
     else if (!r.joinable) text += ' This room is full.';
     $('join-preview-text').textContent = text;
@@ -367,6 +373,11 @@
       else if (r.error === 'network') setConn(false);
       return;
     }
+    if (r.room && r.room.status === 'voting' && r.round) {
+      const mv = await rpc('get_my_vote_items', { p_round_id: r.round.id }, { silent: true });
+      if (seq !== refreshSeq || !roomId) return;
+      r.my_vote_items = mv.ok ? mv.items : null;   // null = server not updated yet: fall back to the old list
+    }
     setConn(true);
     S = r;
     // Estimate the server clock at the middle of the request. Skip slow replies so the estimate stays steady.
@@ -409,7 +420,7 @@
     const room = S.room, isHost = room.host_id === me;
     $('lobby-code').textContent = room.code;
     $('invite-link').value = inviteLink(room.code);
-    $('lobby-count').textContent = '(' + S.members.length + '/' + room.max_players + ')';
+    $('lobby-count').textContent = '(' + S.members.length + ')';
     renderMembers($('lobby-members'), false);
     $('start-btn').hidden = !isHost;
     $('start-btn').disabled = S.members.length < 2;
@@ -426,10 +437,14 @@
   });
 
   $('start-btn').addEventListener('click', () => withBusy($('start-btn'), async () => {
-    if (settingsDirty) { toast('Tap "Save settings" first so your changes are used.'); return; }
+    if (settingsDirty) { const saved = await flushSettings(); if (!saved) return; }
     const r = await rpc('start_game', { p_room_id: roomId });
     if (r.ok) refresh();
   }));
+
+  const ROUND_OPTIONS = [3, 5, 7, 10];
+  const FULL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const HIDDEN_MAX_PLAYERS = 20;   // no longer a setting; a fixed safety limit
 
   function renderSettings(isHost) {
     const room = S.room, box = $('settings');
@@ -439,60 +454,97 @@
       clear(box);
       box.append(el('ul', { class: 'summary-list' },
         el('li', { text: 'Rounds: ' + room.rounds_total }),
-        el('li', { text: 'Max players: ' + room.max_players }),
-        el('li', { text: 'Categories: ' + room.category_ids.map(catLabel).join(', ') }),
-        el('li', { text: 'Letters: ' + room.letter_pool }),
+        el('li', { text: 'Categories: ' + orderCats(room.category_ids).map(catLabel).join(', ') }),
         el('li', { text: room.allow_repeat ? 'Letters may repeat' : 'No repeated letters until all are used' }),
-        el('li', { text: room.peer_voting ? 'Answers not in our list can be voted on by the other players (needs 3+ players)' : 'Answers are checked by our list only' }),
+        el('li', { text: room.peer_voting ? 'Answers not in our list are checked by another player' : 'Answers are checked by our list only' }),
         el('li', { text: 'A round ends when someone submits, or automatically after 15 minutes' })
       ));
       return;
     }
-    const sig = JSON.stringify([room.rounds_total, room.max_players, room.category_ids, room.allow_repeat, room.letter_pool, room.peer_voting, 'host']);
+    // Older rooms may still hold a player limit or letter list from before those options were removed.
+    // Quietly bring them to the fixed values once.
+    if ((room.max_players !== HIDDEN_MAX_PLAYERS || room.letter_pool !== FULL_ALPHABET) && normalizedFor !== room.id) {
+      normalizedFor = room.id;
+      pushSettings(true);
+    }
+    const sig = JSON.stringify([room.rounds_total, room.category_ids, room.allow_repeat, room.peer_voting, 'host']);
     if (sig === settingsSig || settingsDirty) return;
     settingsSig = sig;
     clear(box);
-    const num = (id, label, val, min, max) => [
-      el('label', { for: id, text: label }),
-      el('input', { id, type: 'number', inputmode: 'numeric', min, max, value: val })
-    ];
-    const form = el('form', { class: 'settings-form', onsubmit: saveSettings },
-      num('s-rounds', 'Number of rounds (1 to 26)', room.rounds_total, 1, 26),
-      num('s-max', 'Maximum players (2 to 20)', room.max_players, 2, 20),
+    const seg = el('div', { class: 'seg', role: 'group', 'aria-labelledby': 's-rounds-label' },
+      ROUND_OPTIONS.map((n) => el('button', {
+        type: 'button', class: 'seg-btn', 'data-rounds': String(n), 'aria-pressed': String(room.rounds_total === n), text: String(n),
+        onclick: (e) => {
+          seg.querySelectorAll('.seg-btn').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+          e.currentTarget.setAttribute('aria-pressed', 'true');
+          autoSave();
+        }
+      })));
+    const form = el('div', { class: 'settings-form' },
+      el('label', { id: 's-rounds-label', text: 'Number of rounds' }),
+      seg,
       el('p', { class: 'hint', text: 'Rounds have no countdown. A round ends when someone submits, or automatically after 15 minutes.' }),
-      el('label', { for: 's-pool', text: 'Letters to use' }),
-      el('input', { id: 's-pool', type: 'text', maxlength: '26', value: room.letter_pool, autocapitalize: 'characters', autocomplete: 'off' }),
-      el('p', { class: 'hint', text: 'Keep all 26 letters, or remove hard ones like Q, X, Z.' }),
       el('label', { class: 'check', for: 's-repeat' },
         el('input', { id: 's-repeat', type: 'checkbox', checked: room.allow_repeat }),
         'Allow letters to repeat before the alphabet is used up'),
       el('label', { class: 'check', for: 's-peer' },
         el('input', { id: 's-peer', type: 'checkbox', checked: room.peer_voting }),
-        'Let players vote on answers that are not in our list (needs 3 or more players)'),
+        'Let players check answers that are not in our list'),
       el('fieldset', null,
         el('legend', { text: 'Categories' }),
         shownCats.map((c) => el('label', { class: 'check', for: 'cat-' + c.id },
           el('input', { id: 'cat-' + c.id, type: 'checkbox', 'data-cat': c.id, checked: room.category_ids.includes(c.id) }),
-          c.label))),
-      el('button', { class: 'btn secondary big', type: 'submit', text: 'Save settings' })
+          c.label)))
     );
-    form.addEventListener('input', () => { settingsDirty = true; });
+    form.addEventListener('change', autoSave);
     box.append(form);
   }
 
-  async function saveSettings(e) {
-    e.preventDefault();
-    const cats = [...document.querySelectorAll('#settings input[data-cat]')].filter((i) => i.checked).map((i) => i.dataset.cat);
+  // Reads the settings from the form (or from the room, if the form is not on screen).
+  function readSettings() {
+    const room = S.room;
+    const rBtn = document.querySelector('#settings .seg-btn[aria-pressed="true"]');
+    const catBoxes = [...document.querySelectorAll('#settings input[data-cat]')];
+    return {
+      rounds: rBtn ? parseInt(rBtn.dataset.rounds, 10) : room.rounds_total,
+      cats: catBoxes.length ? catBoxes.filter((i) => i.checked).map((i) => i.dataset.cat) : room.category_ids,
+      repeat: $('s-repeat') ? $('s-repeat').checked : room.allow_repeat,
+      peer: $('s-peer') ? $('s-peer').checked : room.peer_voting
+    };
+  }
+
+  // Every change saves by itself a moment later. There is no Save button.
+  function autoSave() {
+    settingsDirty = true;
+    settingsVer++;
+    clearTimeout(timers.settings);
+    timers.settings = setTimeout(() => { savePending = pushSettings(false); }, 300);
+  }
+
+  async function pushSettings(silent) {
+    const v = settingsVer;
+    const s = readSettings();
     const r = await rpc('update_settings', {
       p_room_id: roomId,
-      p_rounds: parseInt($('s-rounds').value, 10),
-      p_max: parseInt($('s-max').value, 10),
-      p_categories: cats,
-      p_allow_repeat: $('s-repeat').checked,
-      p_letter_pool: $('s-pool').value,
-      p_peer_voting: $('s-peer').checked
-    });
-    if (r.ok) { settingsDirty = false; settingsSig = ''; toast('Settings saved', 'ok'); refresh(); }
+      p_rounds: s.rounds,
+      p_max: HIDDEN_MAX_PLAYERS,
+      p_categories: s.cats,
+      p_allow_repeat: s.repeat,
+      p_letter_pool: FULL_ALPHABET,
+      p_peer_voting: s.peer
+    }, silent ? { silent: true } : undefined);
+    savePending = null;
+    if (settingsVer === v) settingsDirty = false;   // nothing newer is waiting
+    settingsSig = '';                               // redraw the form from what the server really has
+    await refresh();
+    return !!r.ok;
+  }
+
+  // Used by Start game: make sure the latest change is saved before the game begins.
+  async function flushSettings() {
+    clearTimeout(timers.settings);
+    if (!savePending) savePending = pushSettings(false);
+    return savePending;
   }
 
   // ---------- game ----------
@@ -515,45 +567,24 @@
   function buildForm(rd) {
     const box = $('answers');
     clear(box);
-    for (const cat of rd.category_ids) {
+    for (const cat of orderCats(rd.category_ids)) {
       const input = el('input', {
         id: 'ans-' + cat, type: 'text', maxlength: '80', autocomplete: 'off', autocapitalize: 'words',
         spellcheck: 'false', enterkeyhint: 'next', 'data-cat': cat
       });
       input.value = (S.my_answers && S.my_answers[cat]) || '';
       input.addEventListener('input', () => onType(cat, input));
-      input.addEventListener('blur', () => { checkField(cat, input); saveDraft(); });
+      input.addEventListener('blur', saveDraft);
       box.append(el('div', { class: 'field' },
         el('label', { for: 'ans-' + cat, text: catLabel(cat) }),
-        input,
-        el('div', { class: 'fb', id: 'fb-' + cat, 'aria-live': 'polite' })));
-      if (input.value) checkField(cat, input);
+        input));
     }
   }
 
-  function setFb(cat, kind, text) {
-    const f = $('fb-' + cat);
-    if (!f) return;
-    f.className = 'fb' + (kind ? ' ' + kind : '');
-    f.textContent = text;
-  }
-
   function onType(cat, input) {
-    setFb(cat, '', '');
     input.classList.remove('invalid');
-    debounce('chk-' + cat, () => checkField(cat, input), 500);
     debounce('draft', saveDraft, 400);
     updateGameDynamic();
-  }
-
-  async function checkField(cat, input) {
-    const v = input.value.trim();
-    if (!v) { setFb(cat, '', ''); return; }
-    if (!S || !S.round) return;
-    const rid = S.round.id;
-    const r = await rpc('check_answer', { p_round_id: rid, p_category_id: cat, p_text: v }, { silent: true });
-    if (!S || !S.round || S.round.id !== rid || input.value.trim() !== v || !r.ok) return;
-    setFb(cat, r.valid ? 'ok' : 'bad', (r.valid ? '✓ ' : '✗ ') + r.message);
   }
 
   function collect() {
@@ -586,7 +617,7 @@
     document.querySelectorAll('#answers input').forEach((i) => { i.disabled = locked; });
 
     const vals = collect();
-    const missing = rd.category_ids.filter((c) => !(vals[c] || '').trim());
+    const missing = orderCats(rd.category_ids).filter((c) => !(vals[c] || '').trim());
     $('submit-btn').disabled = locked || missing.length > 0;
     $('submit-hint').textContent = !mine ? 'You are watching this round.'
       : submitted ? 'Submitted. Waiting for the round to finish…'
@@ -644,7 +675,7 @@
     clear(catsBox);
     if (S.results) {
       const players = S.players.map((p) => p.user_id).sort((a, b) => nick(a).localeCompare(nick(b)));
-      for (const cat of rd.category_ids) {
+      for (const cat of orderCats(rd.category_ids)) {
         const ul = el('ul');
         for (const uid of players) {
           const a = S.results.find((x) => x.user_id === uid && x.category_id === cat) || { answer: '', points: 0 };
@@ -706,8 +737,12 @@
   function renderVoting() {
     const v = S.voting, ul = $('vote-list');
     clear(ul);
-    for (const it of v.items) {
-      const controls = it.mine
+    const assigned = S.my_vote_items;              // answers given to me to check
+    const items = assigned || v.items;
+    for (const it of items) {
+      const own = !assigned && it.mine;
+      const who = assigned && it.author_ids ? it.author_ids.map(nick).join(' & ') : '';
+      const controls = own
         ? el('span', { class: 'tag', text: 'Your answer' })
         : el('div', { class: 'vote-btns' },
             el('button', { class: 'btn small ' + (it.my_vote === true ? 'primary' : 'secondary'), type: 'button',
@@ -715,11 +750,13 @@
             el('button', { class: 'btn small ' + (it.my_vote === false ? 'danger' : 'secondary'), type: 'button',
               'aria-pressed': String(it.my_vote === false), text: '✗ Reject', onclick: () => castVote(it, false) }));
       ul.append(el('li', { class: 'vote-item' },
-        el('div', null, el('div', { class: 'vcat', text: catLabel(it.category_id) }), el('div', { class: 'vtext', text: it.text })),
+        el('div', null,
+          el('div', { class: 'vcat', text: catLabel(it.category_id) + (who ? ' (' + who + ')' : '') }),
+          el('div', { class: 'vtext', text: it.text })),
         controls));
     }
-    if (!v.items.length) ul.append(el('li', { class: 'muted', text: 'Nothing to vote on.' }));
-    $('vote-progress').textContent = v.cast + ' of ' + v.expected + ' votes cast. Voting ends early when everyone has voted.';
+    if (!items.length) ul.append(el('li', { class: 'muted', text: assigned ? 'You have nothing to check this round. Waiting for the others…' : 'Nothing to vote on.' }));
+    $('vote-progress').textContent = v.cast + ' of ' + v.expected + ' answers checked. Checking ends early when everything has been checked.';
     updateVoteTimer();
   }
 
