@@ -12,7 +12,7 @@
   // ---------- state ----------
   let me = null, roomId = null, roomCode = null, S = null, categories = [], channel = null;
   let hbTimer = null, tickTimer = null, pollTimer = null, refreshTimer = null, toastTimer = null;
-  let clockOffset = 0, refreshSeq = 0, expiryCalledFor = null, voteExpiryCalledFor = null, builtRound = null;
+  let clockOffset = 0, clockSet = false, refreshSeq = 0, expiryCalledFor = null, voteExpiryCalledFor = null, builtRound = null;
   let settingsSig = '', settingsDirty = false, currentView = 'home';
   let chat = [], unread = 0, chatOpen = false;
   const timers = {};
@@ -358,7 +358,9 @@
   async function refresh() {
     if (!roomId) return;
     const seq = ++refreshSeq;
+    const t0 = Date.now();
     const r = await rpc('get_room_state', { p_room_id: roomId }, { silent: true });
+    const t1 = Date.now();
     if (seq !== refreshSeq || !roomId) return;
     if (!r.ok) {
       if (r.error === 'not_member') { toast('You are no longer in this room.'); goHome(); }
@@ -367,7 +369,9 @@
     }
     setConn(true);
     S = r;
-    clockOffset = Date.parse(r.server_now) - Date.now();
+    // Estimate the server clock at the middle of the request. Skip slow replies so the estimate stays steady.
+    // This is only for DISPLAY: the server alone decides when a round locks or ends.
+    if (!clockSet || t1 - t0 <= 1500) { clockOffset = Date.parse(r.server_now) - (t0 + t1) / 2; clockSet = true; }
     render();
   }
 
@@ -439,7 +443,8 @@
         el('li', { text: 'Categories: ' + room.category_ids.map(catLabel).join(', ') }),
         el('li', { text: 'Letters: ' + room.letter_pool }),
         el('li', { text: room.allow_repeat ? 'Letters may repeat' : 'No repeated letters until all are used' }),
-        el('li', { text: room.peer_voting ? 'Players vote on answers not in our list (3+ players)' : 'Answers checked by our list only' })
+        el('li', { text: room.peer_voting ? 'Answers not in our list can be voted on by the other players (needs 3+ players)' : 'Answers are checked by our list only' }),
+        el('li', { text: 'A round ends when someone submits, or automatically after 15 minutes' })
       ));
       return;
     }
@@ -454,6 +459,7 @@
     const form = el('form', { class: 'settings-form', onsubmit: saveSettings },
       num('s-rounds', 'Number of rounds (1 to 26)', room.rounds_total, 1, 26),
       num('s-max', 'Maximum players (2 to 20)', room.max_players, 2, 20),
+      el('p', { class: 'hint', text: 'Rounds have no countdown. A round ends when someone submits, or automatically after 15 minutes.' }),
       el('label', { for: 's-pool', text: 'Letters to use' }),
       el('input', { id: 's-pool', type: 'text', maxlength: '26', value: room.letter_pool, autocapitalize: 'characters', autocomplete: 'off' }),
       el('p', { class: 'hint', text: 'Keep all 26 letters, or remove hard ones like Q, X, Z.' }),
@@ -492,7 +498,7 @@
   // ---------- game ----------
   function renderGame() {
     const rd = S.round, g = S.game;
-    $('game-round').textContent = rd.is_tiebreaker ? 'Tiebreaker round' : 'Round ' + rd.round_number + ' of ' + g.rounds_total;
+    $('game-round').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total;
     const L = $('game-letter');
     if (L.textContent !== rd.letter) {
       L.textContent = rd.letter;
@@ -500,7 +506,9 @@
     }
     if (builtRound !== rd.id) { buildForm(rd); builtRound = rd.id; }
     renderMembers($('game-members'), true);
-    $('spectator').hidden = S.players.some((p) => p.user_id === me);
+    const playing = S.players.some((p) => p.user_id === me);
+    $('spectator').hidden = playing;
+    $('spectator').textContent = 'You were not in the room when this round started, so you are watching this one. You will play from the next round.';
     updateGameDynamic();
   }
 
@@ -572,6 +580,7 @@
     $('countdown').hidden = !counting;
     if (counting) $('countdown-num').textContent = Math.max(1, Math.ceil((start - now) / 1000));
     $('timer').textContent = fmt(Math.max(0, Math.floor((now - start) / 1000)));
+    $('cap-note').textContent = 'The round ends when someone submits, or automatically at ' + fmt(Math.round((end - start) / 1000)) + '.';
 
     const locked = !mine || submitted || counting || over;
     document.querySelectorAll('#answers input').forEach((i) => { i.disabled = locked; });
@@ -582,7 +591,7 @@
     $('submit-hint').textContent = !mine ? 'You are watching this round.'
       : submitted ? 'Submitted. Waiting for the round to finish…'
       : counting ? 'Get ready. Typing starts in a moment.'
-      : over ? 'The round hit its safety limit. Answers are locked.'
+      : over ? 'The automatic round limit was reached. Answers are locked.'
       : missing.length ? 'Still needed: ' + missing.map(catLabel).join(', ')
       : 'Ready to submit. The first submission ends the round for everyone.';
 
@@ -614,7 +623,7 @@
 
   // ---------- results ----------
   function clientLetterOk(answer, letter) {
-    const n = (answer || '').toLowerCase().replace(/['’`]/g, '').replace(/[^\p{L}\p{N}]+/g, ' ').trim();
+    const n = (answer || '').toLowerCase().replace(/['’`]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     return n.length > 0 && n[0].toUpperCase() === letter;
   }
 
@@ -622,16 +631,14 @@
     const rd = S.round, g = S.game, room = S.room, isHost = room.host_id === me;
     if (room.status === 'voting' && S.voting) {
       $('res-body').hidden = true; $('winner-banner').hidden = true; $('vote-card').hidden = false;
-      $('res-title').textContent = (rd.is_tiebreaker ? 'Tiebreaker' : 'Round ' + rd.round_number + ' of ' + g.rounds_total) + '. Letter ' + rd.letter;
-      $('res-sub').textContent = (rd.end_reason === 'submission' ? nick(rd.ended_by) + ' submitted first' : 'Time ran out') + '. Answers are locked. Time to vote.';
+      $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + '. Letter ' + rd.letter;
+      $('res-sub').textContent = endReasonText(rd) + ' Answers are locked. Time to vote.';
       renderVoting();
       return;
     }
     $('vote-card').hidden = true; $('res-body').hidden = false;
-    const title = rd.is_tiebreaker ? 'Tiebreaker' : 'Round ' + rd.round_number + ' of ' + g.rounds_total;
-    $('res-title').textContent = title + ' results. Letter ' + rd.letter;
-    $('res-sub').textContent = (rd.end_reason === 'submission' ? nick(rd.ended_by) + ' submitted first'
-      : rd.end_reason === 'timeout' ? 'Time ran out' : 'Round cancelled') + '. All answers are locked.';
+    $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + ' results. Letter ' + rd.letter;
+    $('res-sub').textContent = endReasonText(rd) + ' All answers are locked.';
 
     const catsBox = $('res-cats');
     clear(catsBox);
@@ -644,7 +651,7 @@
           const blank = !(a.answer || '').trim();
           let cls = 'bad', status = '✗ Not recognized (0)';
           if (blank) status = '✗ Blank (0)';
-          else if (a.valid && a.duplicate) { cls = 'dup'; status = '= Duplicate (0)'; }
+          else if (a.valid && a.duplicate) { cls = 'dup'; status = '= Shared answer +' + a.points; }
           else if (a.valid) { cls = 'ok'; status = (a.by_vote ? '✓ Accepted by vote +' : '✓ Correct +') + a.points; }
           else if (!clientLetterOk(a.answer, rd.letter)) status = '✗ Wrong letter (0)';
           ul.append(el('li', { class: 'res-row ' + cls },
@@ -672,14 +679,10 @@
       const names = (g.winner_ids || []).map(nick);
       clear(wb);
       wb.append(el('div', { class: 'wrow' }, (g.winner_ids || []).map((u) => avatarEl((S.avatars || {})[u], 64))),
-        el('div', { text: '🏆 ' + (names.length > 1 ? 'Winners: ' : 'Winner: ') + names.join(' & ') }));
+        el('div', { text: '🏆 ' + (names.length > 1 ? 'Shared win: ' : 'Winner: ') + names.join(' & ') }));
     }
 
-    const tie = !finished && (rd.is_tiebreaker || rd.round_number >= g.rounds_total);
-    $('tie-note').hidden = !tie;
-    $('tie-note').textContent = tie ? 'It is a tie at the top! The host starts a tiebreaker round between the tied players.' : '';
     $('next-btn').hidden = !(isHost && !finished);
-    $('next-btn').textContent = tie ? 'Start tiebreaker' : 'Next round';
     $('wait-host').hidden = isHost || finished;
 
     const rm = $('rematch');
@@ -687,9 +690,17 @@
     if (finished) {
       const yes = S.rematch_votes.filter((v) => v.vote && S.members.some((m) => m.user_id === v.user_id)).length;
       const mine = S.rematch_votes.find((v) => v.user_id === me);
-      $('rematch-text').textContent = yes + ' of ' + S.members.length + ' players want a rematch. It starts when more than half vote yes and the host is still in the room.'
+      $('rematch-text').textContent = yes + ' of ' + S.members.length + ' players want a rematch. It starts when more than half of the players vote yes and the host is still in the room.'
         + (mine ? ' You voted ' + (mine.vote ? 'yes.' : 'no.') : '');
+      $('vote-yes').setAttribute('aria-pressed', String(!!(mine && mine.vote)));
+      $('vote-no').setAttribute('aria-pressed', String(!!(mine && !mine.vote)));
     }
+  }
+
+  function endReasonText(rd) {
+    if (rd.end_reason === 'submission') return nick(rd.ended_by) + ' submitted first.';
+    if (rd.end_reason === 'timeout') return 'Nobody submitted, so the automatic ' + fmt(Math.round((Date.parse(rd.ends_at) - Date.parse(rd.starts_at)) / 1000)) + ' limit ended the round.';
+    return 'The round was cancelled.';
   }
 
   function renderVoting() {
@@ -736,7 +747,7 @@
 
   async function vote(v) {
     const r = await rpc('vote_rematch', { p_game_id: S.game.id, p_vote: v });
-    if (r.ok && r.rematch_started) toast('Rematch starting!', 'ok');
+    if (r.ok && r.rematch_started) { builtRound = null; toast('Rematch starting!', 'ok'); }
     refresh();
   }
   $('vote-yes').addEventListener('click', () => vote(true));

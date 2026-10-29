@@ -221,3 +221,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .modal-card .row { margin-top: 12px; }
 .modal-card .row .btn { flex: 1; }
 .btn.primary.danger-solid { background: var(--bad); border-color: #7a1c16; }
+
+/* v5: long result labels (e.g. "Accepted by vote +10") must wrap inside the card on narrow phones */
+.res-row > div:first-child { min-width: 0; flex: 1 1 110px; }
+.res-row .status { white-space: normal; text-align: right; flex: 0 1 auto; max-width: 55%; }
