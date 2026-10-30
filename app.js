@@ -231,7 +231,7 @@
     const r = await rpc('get_room_by_code', { p_code: code });
     if (!r.ok) return;
     let text = 'Room ' + r.code + '. Host: ' + (r.host || 'unknown') + '. Players: ' + r.players + '.';
-    if (r.status !== 'lobby') text += ' A game is already in progress (only players who were already in it can rejoin).';
+    if (r.status !== 'lobby') text += ' Game already started. Only players already in it can rejoin.';
     else if (!r.joinable) text += ' This room is full.';
     $('join-preview-text').textContent = text;
     $('join-preview').hidden = false;
@@ -301,13 +301,13 @@
   }
 
   $('leave-btn').addEventListener('click', async () => {
-    if (!(await confirmBox('Leave this room?', 'You can come back with the room code while the room is still open.', 'Leave', 'Stay', true))) return;
+    if (!(await confirmBox('Leave this room?', 'You can rejoin with the room code while it is open.', 'Leave', 'Stay', true))) return;
     await rpc('leave_room', { p_room_id: roomId }, { silent: true });
     goHome();
   });
 
   $('end-btn').addEventListener('click', async () => {
-    if (!(await confirmBox('End the game?', 'The game stops for everyone and the room goes back to the lobby.', 'End game', 'Keep playing', true))) return;
+    if (!(await confirmBox('End the game?', 'The game stops for everyone and returns to the lobby.', 'End game', 'Keep playing', true))) return;
     const r = await rpc('cancel_game', { p_room_id: roomId });
     if (r.ok) { builtRound = null; refresh(); }
   });
@@ -456,8 +456,7 @@
         el('li', { text: 'Rounds: ' + room.rounds_total }),
         el('li', { text: 'Categories: ' + orderCats(room.category_ids).map(catLabel).join(', ') }),
         el('li', { text: room.allow_repeat ? 'Letters may repeat' : 'No repeated letters until all are used' }),
-        el('li', { text: room.peer_voting ? 'Answers not in our list are checked by another player' : 'Answers are checked by our list only' }),
-        el('li', { text: 'A round ends when someone submits, or automatically after 15 minutes' })
+        el('li', { text: room.peer_voting ? 'Unknown answers are checked by another player' : 'Word list only' })
       ));
       return;
     }
@@ -486,10 +485,10 @@
       el('p', { class: 'hint', text: 'Rounds have no countdown. A round ends when someone submits, or automatically after 15 minutes.' }),
       el('label', { class: 'check', for: 's-repeat' },
         el('input', { id: 's-repeat', type: 'checkbox', checked: room.allow_repeat }),
-        'Allow letters to repeat before the alphabet is used up'),
+        'Allow repeated letters'),
       el('label', { class: 'check', for: 's-peer' },
         el('input', { id: 's-peer', type: 'checkbox', checked: room.peer_voting }),
-        'Let players check answers that are not in our list'),
+        'Let players check unknown answers'),
       el('fieldset', null,
         el('legend', { text: 'Categories' }),
         shownCats.map((c) => el('label', { class: 'check', for: 'cat-' + c.id },
@@ -560,7 +559,7 @@
     renderMembers($('game-members'), true);
     const playing = S.players.some((p) => p.user_id === me);
     $('spectator').hidden = playing;
-    $('spectator').textContent = 'You were not in the room when this round started, so you are watching this one. You will play from the next round.';
+    $('spectator').textContent = 'You joined mid-round, so you are watching. You play from the next round.';
     updateGameDynamic();
   }
 
@@ -662,14 +661,14 @@
     const rd = S.round, g = S.game, room = S.room, isHost = room.host_id === me;
     if (room.status === 'voting' && S.voting) {
       $('res-body').hidden = true; $('winner-banner').hidden = true; $('vote-card').hidden = false;
-      $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + '. Letter ' + rd.letter;
-      $('res-sub').textContent = endReasonText(rd) + ' Answers are locked. Time to vote.';
+      $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + ' · Letter ' + rd.letter;
+      $('res-sub').textContent = endReasonText(rd) + ' Time to check answers.';
       renderVoting();
       return;
     }
     $('vote-card').hidden = true; $('res-body').hidden = false;
-    $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + ' results. Letter ' + rd.letter;
-    $('res-sub').textContent = endReasonText(rd) + ' All answers are locked.';
+    $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + ' · Letter ' + rd.letter;
+    $('res-sub').textContent = endReasonText(rd);
 
     const catsBox = $('res-cats');
     clear(catsBox);
@@ -721,7 +720,7 @@
     if (finished) {
       const yes = S.rematch_votes.filter((v) => v.vote && S.members.some((m) => m.user_id === v.user_id)).length;
       const mine = S.rematch_votes.find((v) => v.user_id === me);
-      $('rematch-text').textContent = yes + ' of ' + S.members.length + ' players want a rematch. It starts when more than half of the players vote yes and the host is still in the room.'
+      $('rematch-text').textContent = yes + ' of ' + S.members.length + ' want a rematch.'
         + (mine ? ' You voted ' + (mine.vote ? 'yes.' : 'no.') : '');
       $('vote-yes').setAttribute('aria-pressed', String(!!(mine && mine.vote)));
       $('vote-no').setAttribute('aria-pressed', String(!!(mine && !mine.vote)));
@@ -730,7 +729,7 @@
 
   function endReasonText(rd) {
     if (rd.end_reason === 'submission') return nick(rd.ended_by) + ' submitted first.';
-    if (rd.end_reason === 'timeout') return 'Nobody submitted, so the automatic ' + fmt(Math.round((Date.parse(rd.ends_at) - Date.parse(rd.starts_at)) / 1000)) + ' limit ended the round.';
+    if (rd.end_reason === 'timeout') return 'Nobody submitted, so time ran out.';
     return 'The round was cancelled.';
   }
 
@@ -756,8 +755,8 @@
           el('div', { class: 'vtext', text: it.text })),
         controls));
     }
-    if (!items.length) ul.append(el('li', { class: 'muted', text: assigned ? 'You have nothing to check this round. Waiting for the others…' : 'Nothing to vote on.' }));
-    $('vote-progress').textContent = v.cast + ' of ' + v.expected + ' answers checked. Checking ends early when everything has been checked.';
+    if (!items.length) ul.append(el('li', { class: 'muted', text: assigned ? 'Nothing for you to check. Waiting for the others…' : 'Nothing to vote on.' }));
+    $('vote-progress').textContent = v.cast + ' of ' + v.expected + ' checked.';
     updateVoteTimer();
   }
 

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -80,7 +80,7 @@
 
         <button id="create-btn" class="btn primary big">Create Room</button>
 
-        <button id="show-join" class="link-btn" aria-expanded="false" aria-controls="join-box">Have a code? Join a room</button>
+        <button id="show-join" class="btn secondary big" aria-expanded="false" aria-controls="join-box">Join Room</button>
         <div id="join-box" class="join-box" hidden>
           <label for="code-input">Room code</label>
           <input id="code-input" type="text" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="e.g. K7MQ2">
@@ -96,11 +96,11 @@
         <summary>How to play</summary>
         <div class="how-body">
           <ul class="rules">
-            <li>Each round has one letter, the same for everyone. Fill every box with a word that starts with it.</li>
-            <li>The first player to submit ends the round and locks all answers. If nobody submits, it ends after 15 minutes.</li>
-            <li>A correct answer nobody else gave scores 10. A correct answer others also gave scores 5 each. Wrong answers, the wrong letter and empty boxes score 0.</li>
-            <li>An answer that is not in our word list can be checked by another player, if the host has that on. Players check in a circle and never their own answers.</li>
-            <li>The highest total wins, and ties share the win. After the last round everyone can vote on a rematch. It starts when more than half say yes and the host is still in the room.</li>
+            <li>One letter per round. Fill every box with a word that starts with it.</li>
+            <li>The first to submit ends the round for everyone, or it ends after 15 minutes.</li>
+            <li>A unique correct answer scores 10, a shared one 5, wrong or empty 0.</li>
+            <li>Unknown words can be checked by another player, in a circle.</li>
+            <li>Highest total wins and ties share the win. Then everyone votes on a rematch: more than half must say yes.</li>
           </ul>
         </div>
       </details>
@@ -126,7 +126,7 @@
       </div>
 
       <div class="card">
-        <h2>Game settings</h2>
+        <h2>Settings</h2>
         <div id="settings"></div>
       </div>
     </section>
@@ -166,8 +166,8 @@
       <p id="res-sub" class="muted"></p>
 
       <div id="vote-card" class="card" hidden>
-        <h2>Check answers not in our list</h2>
-        <p class="muted">Accept an answer if it is real and fits the category.</p>
+        <h2>Check answers</h2>
+        <p class="muted">Is it real and in the right category?</p>
         <p id="vote-timer" class="vote-timer"></p>
         <ul id="vote-list" class="vote-list"></ul>
         <p id="vote-progress" class="muted"></p>
@@ -230,6 +230,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.93.2/dist/umd/supabase.js"></script>
   <script src="config.js?v=5"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
