@@ -2,10 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fbf7ec">
   <title>WordRush: Think fast. Write smart. Win together.</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <!-- Handwriting font for small accents. Safe to delete these three lines: a similar system font is used instead. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=swap">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -59,7 +63,6 @@
         <label for="nick-input">Your nickname</label>
         <input id="nick-input" type="text" maxlength="20" autocomplete="off" placeholder="e.g. Sara">
 
-        <p class="small-label pick-label">Pick your look</p>
         <div class="picker">
           <div class="arrows">
             <button class="arrow" data-part="0" data-dir="-1" aria-label="Previous colour">‹</button>
@@ -93,15 +96,11 @@
         <summary>How to play</summary>
         <div class="how-body">
           <ul class="rules">
-            <li>Each round shows one random letter, the same for everyone. Write an answer starting with it for every category.</li>
-            <li>Every box must be filled before you can submit.</li>
-            <li>The <strong>first player to submit</strong> ends the round for everyone, and all answers lock at once. Nobody can submit late.</li>
-            <li>If nobody submits, the round ends by itself after <strong>15 minutes</strong>.</li>
-            <li>A correct answer that nobody else gave scores <strong>10 points</strong>.</li>
-            <li>A correct answer that other players also gave scores <strong>5 points</strong> for each player who gave it.</li>
-            <li>Wrong answers, answers starting with the wrong letter and empty boxes score <strong>0</strong>, including any box you had not filled when the round ended.</li>
-            <li>Answers are checked against our word lists. If an answer is not in the list and the host has checking on, another player checks it. Players check in a circle: each player checks one other player's answers, never their own. An accepted answer scores like any correct answer.</li>
-            <li>After the last round the highest total wins. If players tie, they <strong>share the win</strong>. Then everyone can vote on a rematch. It starts when more than half of the players vote yes and the host is still in the room.</li>
+            <li>Each round has one letter, the same for everyone. Fill every box with a word that starts with it.</li>
+            <li>The first player to submit ends the round and locks all answers. If nobody submits, it ends after 15 minutes.</li>
+            <li>A correct answer nobody else gave scores 10. A correct answer others also gave scores 5 each. Wrong answers, the wrong letter and empty boxes score 0.</li>
+            <li>An answer that is not in our word list can be checked by another player, if the host has that on. Players check in a circle and never their own answers.</li>
+            <li>The highest total wins, and ties share the win. After the last round everyone can vote on a rematch. It starts when more than half say yes and the host is still in the room.</li>
           </ul>
         </div>
       </details>
@@ -109,10 +108,10 @@
 
     <!-- LOBBY -->
     <section id="view-lobby" hidden>
-      <div class="card">
+      <div class="card tape">
         <p class="small-label">Room code</p>
         <div id="lobby-code" class="big-code"></div>
-        <label for="invite-link">Invite link</label>
+        <label class="sr-only" for="invite-link">Invite link</label>
         <div class="row">
           <input id="invite-link" type="text" readonly>
           <button id="copy-btn" class="btn secondary">Copy</button>
@@ -138,7 +137,7 @@
         <div>
           <p id="game-round" class="small-label"></p>
           <div id="timer" class="timer" role="timer" aria-label="Time so far">0:00</div>
-          <p id="cap-note" class="hint"></p>
+          <p id="cap-note" class="hint" hidden></p>
         </div>
         <div id="game-letter" class="letter" aria-label="Current letter"></div>
       </div>
@@ -168,7 +167,7 @@
 
       <div id="vote-card" class="card" hidden>
         <h2>Check answers not in our list</h2>
-        <p class="muted">These answers were given to you to check. Accept an answer if it is real and fits the category. Your decision settles it.</p>
+        <p class="muted">Accept an answer if it is real and fits the category.</p>
         <p id="vote-timer" class="vote-timer"></p>
         <ul id="vote-list" class="vote-list"></ul>
         <p id="vote-progress" class="muted"></p>
