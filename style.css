@@ -162,8 +162,6 @@ input[type="checkbox"]:active { transform: scale(.9); }
 .logo-blue { fill: var(--accent); }
 .top-logo { height: 36px; width: auto; flex: none; }
 .hero-logo { width: 100%; max-width: 310px; margin: 0 auto; }
-.tagline { margin: 8px 0 0; font: 500 1.6rem/1.1 var(--hand); color: var(--pencil); }
-.tagline::after { content: ""; display: block; width: 96px; height: 10px; margin: 8px auto 0; background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20120%2010%27%3E%3Cpath%20d%3D%27M2%206%20Q12%200%2022%206%20T42%206%20T62%206%20T82%206%20T102%206%20T118%205%27%20fill%3D%27none%27%20stroke%3D%27%23e39a9a%27%20stroke-width%3D%272.6%27%20stroke-linecap%3D%27round%27%2F%3E%3C%2Fsvg%3E") center / contain no-repeat; }
 .home-card { padding: 26px 18px 20px; }
 #create-btn, #show-join { min-height: 58px; font-size: 1.2rem; }
 #create-btn { margin-top: 24px; }
@@ -367,3 +365,16 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 #next-btn { margin-bottom: 16px; }
 .join-box { margin-top: 14px; padding-top: 6px; }
 .modal-card h2 { font-size: 2.1rem; }
+
+/* ---------- v3 ---------- */
+.top-actions { align-items: center; }
+.icon-btn {
+  width: 42px; height: 42px; display: grid; place-items: center; padding: 0;
+  font-size: 1.15rem; line-height: 1; background: transparent; cursor: pointer;
+  border: 1.5px solid rgba(38, 40, 58, .35); border-radius: 50%;
+  transition: transform .12s var(--ease), opacity .2s;
+}
+.icon-btn:active { transform: scale(.9); }
+.icon-btn[aria-pressed="false"] { opacity: .55; }
+#res-sub:empty, #vote-progress:empty, #start-hint:empty { display: none; }
+#wait-host { display: none !important; }

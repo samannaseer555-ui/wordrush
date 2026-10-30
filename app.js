@@ -15,6 +15,7 @@
   let clockOffset = 0, clockSet = false, refreshSeq = 0, expiryCalledFor = null, voteExpiryCalledFor = null, builtRound = null;
   let settingsSig = '', settingsDirty = false, currentView = 'home';
   let savePending = null, settingsVer = 0, normalizedFor = null;
+  let lastTickNum = null, goPlayedFor = null, endPlayedFor = null, winPlayedFor = null;
   let chat = [], unread = 0, chatOpen = false;
   const timers = {};
 
@@ -56,6 +57,47 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, 4500);
   }
+
+  // ---------- sounds (tiny generated tones, no audio files) ----------
+  let audioCtx = null, soundOn = localStorage.getItem('wordrush_sound') !== 'off';
+  function unlockAudio() {          // browsers only allow sound after the player has tapped something
+    try {
+      if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { /* sound is optional */ }
+  }
+  ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
+  function tone(freq, at, dur, type, vol) {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    const t0 = audioCtx.currentTime + at;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.08, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+  const SOUNDS = {
+    tick: () => tone(520, 0, 0.09, 'triangle', 0.06),
+    go:   () => { tone(660, 0, 0.14, 'triangle', 0.09); tone(990, 0.12, 0.22, 'triangle', 0.09); },
+    end:  () => { tone(660, 0, 0.16, 'triangle', 0.08); tone(440, 0.15, 0.28, 'triangle', 0.08); },
+    win:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.13, 0.3, 'triangle', 0.09))
+  };
+  function playSound(name) { if (soundOn && SOUNDS[name]) { try { SOUNDS[name](); } catch (e) { /* ignore */ } } }
+  function drawSoundBtn() {
+    const b = $('sound-btn');
+    b.textContent = soundOn ? '🔊' : '🔇';
+    b.setAttribute('aria-pressed', String(soundOn));
+    b.setAttribute('aria-label', soundOn ? 'Sound on. Tap to mute' : 'Sound off. Tap to turn on');
+  }
+  $('sound-btn').addEventListener('click', () => {
+    soundOn = !soundOn;
+    localStorage.setItem('wordrush_sound', soundOn ? 'on' : 'off');
+    drawSoundBtn();
+    if (soundOn) playSound('tick');
+  });
+  drawSoundBtn();
 
   // ---------- avatars (drawn from 3 small numbers, e.g. "2.5.1": colour, eyes, mouth) ----------
   const INK = '#26283a';
@@ -425,13 +467,22 @@
     $('start-btn').hidden = !isHost;
     $('start-btn').disabled = S.members.length < 2;
     $('start-hint').textContent = isHost
-      ? (S.members.length < 2 ? 'Waiting for at least one more player…' : 'Ready when you are!')
+      ? (S.members.length < 2 ? 'Waiting for at least one more player…' : '')
       : 'Waiting for the host to start the game…';
+    $('settings-card').hidden = !isHost;
     renderSettings(isHost);
   }
 
   $('copy-btn').addEventListener('click', async () => {
     const input = $('invite-link');
+    if (navigator.share) {            // opens the phone's share menu (WhatsApp, Messages, ...)
+      try {
+        await navigator.share({ title: 'WordRush', text: 'Join my WordRush game. Room code: ' + $('lobby-code').textContent, url: input.value });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;   // the player closed the share menu
+      }
+    }
     try { await navigator.clipboard.writeText(input.value); toast('Invite link copied', 'ok'); }
     catch (e) { input.select(); document.execCommand('copy'); toast('Invite link copied', 'ok'); }
   });
@@ -452,21 +503,15 @@
     if (!isHost) {
       settingsSig = '';
       clear(box);
-      box.append(el('ul', { class: 'summary-list' },
-        el('li', { text: 'Rounds: ' + room.rounds_total }),
-        el('li', { text: 'Categories: ' + orderCats(room.category_ids).map(catLabel).join(', ') }),
-        el('li', { text: room.allow_repeat ? 'Letters may repeat' : 'No repeated letters until all are used' }),
-        el('li', { text: room.peer_voting ? 'Unknown answers are checked by another player' : 'Word list only' })
-      ));
       return;
     }
     // Older rooms may still hold a player limit or letter list from before those options were removed.
     // Quietly bring them to the fixed values once.
-    if ((room.max_players !== HIDDEN_MAX_PLAYERS || room.letter_pool !== FULL_ALPHABET) && normalizedFor !== room.id) {
+    if ((room.max_players !== HIDDEN_MAX_PLAYERS || room.letter_pool !== FULL_ALPHABET || room.peer_voting !== true || room.allow_repeat !== false) && normalizedFor !== room.id) {
       normalizedFor = room.id;
       pushSettings(true);
     }
-    const sig = JSON.stringify([room.rounds_total, room.category_ids, room.allow_repeat, room.peer_voting, 'host']);
+    const sig = JSON.stringify([room.rounds_total, room.category_ids, 'host']);
     if (sig === settingsSig || settingsDirty) return;
     settingsSig = sig;
     clear(box);
@@ -483,12 +528,6 @@
       el('label', { id: 's-rounds-label', text: 'Number of rounds' }),
       seg,
       el('p', { class: 'hint', text: 'Rounds have no countdown. A round ends when someone submits, or automatically after 15 minutes.' }),
-      el('label', { class: 'check', for: 's-repeat' },
-        el('input', { id: 's-repeat', type: 'checkbox', checked: room.allow_repeat }),
-        'Allow repeated letters'),
-      el('label', { class: 'check', for: 's-peer' },
-        el('input', { id: 's-peer', type: 'checkbox', checked: room.peer_voting }),
-        'Let players check unknown answers'),
       el('fieldset', null,
         el('legend', { text: 'Categories' }),
         shownCats.map((c) => el('label', { class: 'check', for: 'cat-' + c.id },
@@ -507,8 +546,8 @@
     return {
       rounds: rBtn ? parseInt(rBtn.dataset.rounds, 10) : room.rounds_total,
       cats: catBoxes.length ? catBoxes.filter((i) => i.checked).map((i) => i.dataset.cat) : room.category_ids,
-      repeat: $('s-repeat') ? $('s-repeat').checked : room.allow_repeat,
-      peer: $('s-peer') ? $('s-peer').checked : room.peer_voting
+      repeat: false,   // letters may come back, but rarely: the server handles this
+      peer: true       // checking unknown answers is always on
     };
   }
 
@@ -608,12 +647,25 @@
     const counting = now < start, over = now >= end;
 
     $('countdown').hidden = !counting;
-    if (counting) $('countdown-num').textContent = Math.max(1, Math.ceil((start - now) / 1000));
+    if (counting) {
+      const num = Math.max(1, Math.ceil((start - now) / 1000));
+      $('countdown-num').textContent = num;
+      if (num !== lastTickNum) { lastTickNum = num; if (num <= 3) playSound('tick'); }
+    }
     $('timer').textContent = fmt(Math.max(0, Math.floor((now - start) / 1000)));
     $('cap-note').textContent = 'The round ends when someone submits, or automatically at ' + fmt(Math.round((end - start) / 1000)) + '.';
 
     const locked = !mine || submitted || counting || over;
     document.querySelectorAll('#answers input').forEach((i) => { i.disabled = locked; });
+    if (!counting && goPlayedFor !== rd.id) {         // the round has just started
+      goPlayedFor = rd.id;
+      if (mine && !submitted && !over && now - start < 4000) {
+        playSound('go');
+        const first = document.querySelector('#answers input:not(:disabled)');
+        const active = document.activeElement;
+        if (first && !(active && active.tagName === 'INPUT')) first.focus({ preventScroll: true });
+      }
+    }
 
     const vals = collect();
     const missing = orderCats(rd.category_ids).filter((c) => !(vals[c] || '').trim());
@@ -659,16 +711,17 @@
 
   function renderResults() {
     const rd = S.round, g = S.game, room = S.room, isHost = room.host_id === me;
+    if (endPlayedFor !== rd.id) { endPlayedFor = rd.id; playSound('end'); }
     if (room.status === 'voting' && S.voting) {
       $('res-body').hidden = true; $('winner-banner').hidden = true; $('vote-card').hidden = false;
       $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + ' · Letter ' + rd.letter;
-      $('res-sub').textContent = endReasonText(rd) + ' Time to check answers.';
+      $('res-sub').textContent = '';
       renderVoting();
       return;
     }
     $('vote-card').hidden = true; $('res-body').hidden = false;
     $('res-title').textContent = 'Round ' + rd.round_number + ' of ' + g.rounds_total + ' · Letter ' + rd.letter;
-    $('res-sub').textContent = endReasonText(rd);
+    $('res-sub').textContent = rd.end_reason === 'submission' ? '' : endReasonText(rd);
 
     const catsBox = $('res-cats');
     clear(catsBox);
@@ -706,6 +759,7 @@
     const wb = $('winner-banner');
     wb.hidden = !finished;
     if (finished) {
+      if (winPlayedFor !== g.id) { winPlayedFor = g.id; playSound('win'); }
       const names = (g.winner_ids || []).map(nick);
       clear(wb);
       wb.append(el('div', { class: 'wrow' }, (g.winner_ids || []).map((u) => avatarEl((S.avatars || {})[u], 64))),
@@ -755,15 +809,15 @@
           el('div', { class: 'vtext', text: it.text })),
         controls));
     }
-    if (!items.length) ul.append(el('li', { class: 'muted', text: assigned ? 'Nothing for you to check. Waiting for the others…' : 'Nothing to vote on.' }));
-    $('vote-progress').textContent = v.cast + ' of ' + v.expected + ' checked.';
+    if (!items.length) ul.append(el('li', { class: 'muted', text: assigned ? 'Waiting for the others…' : 'Nothing to vote on.' }));
+    $('vote-progress').textContent = '';
     updateVoteTimer();
   }
 
   function updateVoteTimer() {
     if (!S || !S.voting) return;
     const left = Math.ceil((Date.parse(S.voting.ends_at) - serverNow()) / 1000);
-    $('vote-timer').textContent = left > 0 ? 'Voting closes in ' + fmt(left) : 'Counting the votes…';
+    $('vote-timer').textContent = left > 0 ? fmt(left) + ' left' : 'Counting the votes…';
     if (left <= 0 && voteExpiryCalledFor !== S.round.id) {
       const rid = S.round.id;
       voteExpiryCalledFor = rid;
