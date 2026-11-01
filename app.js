@@ -842,7 +842,10 @@
     refresh();
   }
   $('vote-yes').addEventListener('click', () => vote(true));
-  $('vote-no').addEventListener('click', () => vote(false));
+  $('vote-no').addEventListener('click', async () => {    // "No thanks" leaves the room, straight away
+    await rpc('leave_room', { p_room_id: roomId }, { silent: true });
+    goHome();
+  });
 
   // ---------- chat ----------
   async function loadChatHistory() {
