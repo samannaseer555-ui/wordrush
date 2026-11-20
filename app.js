@@ -80,6 +80,7 @@
   }
   const SOUNDS = {
     tick: () => tone(520, 0, 0.09, 'triangle', 0.06),
+    msg:  () => { tone(880, 0, 0.1, 'sine', 0.06); tone(1175, 0.09, 0.16, 'sine', 0.05); },
     go:   () => { tone(660, 0, 0.14, 'triangle', 0.09); tone(990, 0.12, 0.22, 'triangle', 0.09); },
     end:  () => { tone(660, 0, 0.16, 'triangle', 0.08); tone(440, 0.15, 0.28, 'triangle', 0.08); },
     win:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.13, 0.3, 'triangle', 0.09))
@@ -859,8 +860,22 @@
     if (!m || chat.some((x) => x.id === m.id)) return;
     chat.push(m);
     if (chat.length > 200) chat.shift();
-    if (!chatOpen && m.user_id !== me) unread++;
+    if (!chatOpen && m.user_id !== me) { unread++; showChatPop(m); }
     renderChat();
+  }
+
+  // A small bubble above the Chat button for a new message from someone else.
+  function showChatPop(m) {
+    const box = $('chat-pops');
+    while (box.children.length >= 3) box.firstChild.remove();
+    const pop = el('button', { class: 'chat-pop', type: 'button', onclick: () => { pop.remove(); if (!chatOpen) $('chat-toggle').click(); } },
+      avatarEl((S && S.avatars && S.avatars[m.user_id]) || '0.0.0', 36),
+      el('div', { class: 'cp-text' },
+        el('div', { class: 'cp-name', text: m.nickname || nick(m.user_id) }),
+        el('div', { class: 'cp-body', text: m.body })));
+    box.append(pop);
+    playSound('msg');
+    setTimeout(() => { pop.classList.add('out'); setTimeout(() => pop.remove(), 320); }, 4000);
   }
 
   function renderChat() {
@@ -881,6 +896,7 @@
 
   $('chat-toggle').addEventListener('click', () => {
     chatOpen = !chatOpen;
+    if (chatOpen) clear($('chat-pops'));
     $('chat-panel').hidden = !chatOpen;
     $('chat-toggle').setAttribute('aria-expanded', String(chatOpen));
     if (chatOpen) { unread = 0; renderChat(); $('chat-input').focus(); }

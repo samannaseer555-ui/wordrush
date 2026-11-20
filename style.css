@@ -18,7 +18,7 @@
   --bad-bg: #fbe6e3;
   --dup: #8a5a00;
   --dup-bg: #fff1cf;
-  --hand: "Caveat", "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", cursive;
+  --hand: "Schoolbell", "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", cursive;
   --serif: Georgia, "Times New Roman", serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --wobble: 14px 11px 15px 12px / 12px 15px 11px 14px;   /* corners that look cut by hand */
@@ -49,9 +49,9 @@ body::before {
     radial-gradient(circle at 7px 50%, #efe8d4 0 5px, rgba(38, 40, 58, .2) 5.5px 6.5px, transparent 7px),
     radial-gradient(circle at 7px 84%, #efe8d4 0 5px, rgba(38, 40, 58, .2) 5.5px 6.5px, transparent 7px);
 }
-h1, h2, h3 { font-family: var(--hand); font-weight: 700; line-height: 1.05; letter-spacing: .01em; margin: 0 0 .45rem; }
-h2 { font-size: 2.05rem; }
-h3 { font-size: 1.8rem; }
+h1, h2, h3 { font-family: var(--hand); font-weight: 400; line-height: 1.05; letter-spacing: .01em; margin: 0 0 .45rem; }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.55rem; }
 p { margin: 0 0 .75rem; }
 .muted { color: var(--pencil); }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -104,7 +104,7 @@ input:disabled { background: transparent; color: var(--pencil); }
 #nick-input, #answers input {
   background: transparent; border: 0; border-bottom: 2px solid rgba(90, 95, 115, .65); border-radius: 0;
   padding: 4px 2px 2px; min-height: 54px;
-  font-family: var(--hand); font-size: 1.9rem; line-height: 1.1;
+  font-family: var(--hand); font-size: 1.65rem; line-height: 1.1;
 }
 #nick-input:focus, #answers input:focus { border-bottom-color: var(--accent); box-shadow: 0 2px 0 var(--accent); }
 #nick-input::placeholder, #answers input::placeholder { color: rgba(90, 95, 115, .45); }
@@ -197,7 +197,7 @@ input[type="checkbox"]:active { transform: scale(.9); }
 .preview p { margin-bottom: 0; }
 
 details.how.card { background: transparent; border: 0; box-shadow: none; padding: 0; margin: 4px 0 0; text-align: center; }
-.how summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; list-style: none; cursor: pointer; font: 500 1.4rem var(--hand); color: var(--pencil); }
+.how summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; list-style: none; cursor: pointer; font: 400 1.20rem var(--hand); color: var(--pencil); }
 .how summary::-webkit-details-marker { display: none; }
 .how summary::before { content: "?"; display: grid; place-items: center; width: 24px; height: 24px; border: 1.5px solid currentColor; border-radius: 50%; font: 700 .85rem var(--serif); }
 .how[open] summary { color: var(--ink); }
@@ -225,7 +225,7 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 .seg { display: flex; gap: 8px; margin: 8px 0 6px; }
 .seg-btn {
   flex: 1; min-height: 52px; cursor: pointer;
-  font: 700 1.9rem/1 var(--hand); color: var(--ink);
+  font: 400 1.63rem/1 var(--hand); color: var(--ink);
   background: rgba(255, 255, 255, .65); border: 2px solid rgba(38, 40, 58, .5); border-radius: var(--wobble);
   transition: transform .12s var(--ease), background-color .2s, box-shadow .12s;
 }
@@ -238,7 +238,7 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 
 /* ---------- game ---------- */
 .game-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 22px; }
-#game-round { font: 700 1.35rem var(--hand); letter-spacing: 0; text-transform: none; color: var(--pencil); }
+#game-round { font: 400 1.16rem var(--hand); letter-spacing: 0; text-transform: none; color: var(--pencil); }
 .timer { font: 700 2.2rem/1.1 var(--serif); font-variant-numeric: tabular-nums; }
 .timer.low { color: var(--bad); animation: pulse 1s infinite; }
 .letter {                                       /* the letter, circled in pencil and highlighted in yellow */
@@ -250,27 +250,27 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 }
 .letter.pop { animation: pop .45s ease-out; }
 .countdown { display: grid; place-items: center; margin: 0 0 18px; padding: 14px; text-align: center; border: 2px dashed var(--accent); border-radius: var(--wobble); background: rgba(44, 95, 138, .06); }
-.countdown span { font: 500 1.5rem/1 var(--hand); color: var(--pencil); }
+.countdown span { font: 400 1.29rem/1 var(--hand); color: var(--pencil); }
 .countdown strong { font: 700 3.6rem/1.1 var(--serif); color: var(--accent); }
 .notice { padding: 12px 14px; margin-bottom: 18px; border-radius: var(--wobble); background: var(--dup-bg); color: var(--dup); font-weight: 600; }
 .field { margin-bottom: 16px; }
-.field label { margin: 0; font: 700 1.65rem/1.1 var(--hand); letter-spacing: 0; text-transform: none; color: var(--ink); }
+.field label { margin: 0; font: 400 1.42rem/1.1 var(--hand); letter-spacing: 0; text-transform: none; color: var(--ink); }
 #submit-hint { margin: 4px 0 0; text-align: center; font-size: .95rem; }
 #game-members { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
 #game-members li, #game-members li + li { padding: 3px 12px 3px 4px; border: 1.5px solid rgba(38, 40, 58, .16); border-radius: 999px; background: rgba(255, 255, 255, .6); }
 
 /* ---------- results ---------- */
-#res-title { font: 700 2.4rem/1.05 var(--hand); margin: 0 0 4px; }
+#res-title { font: 400 2.06rem/1.05 var(--hand); margin: 0 0 4px; }
 #res-sub { margin-bottom: 18px; }
 .winner {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 18px 14px; margin-bottom: 20px; text-align: center;
-  font: 700 1.9rem/1.15 var(--hand); color: var(--ink);
+  font: 400 1.63rem/1.15 var(--hand); color: var(--ink);
   background: #fff6d6; border: 2px dashed rgba(138, 90, 0, .55); border-radius: var(--wobble);
   transform: rotate(-1deg); animation: pop .6s ease-out;
 }
 .winner .wrow { display: flex; gap: 6px; }
-.res-cat h3 { font: 700 1.95rem/1.05 var(--hand); margin: 0 0 12px; }
+.res-cat h3 { font: 400 1.68rem/1.05 var(--hand); margin: 0 0 12px; }
 .res-cat ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .res-row {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -290,7 +290,7 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 .board { counter-reset: place; list-style: none; margin: 0; padding: 0; }
 .board li { counter-increment: place; display: flex; align-items: center; gap: 10px; padding: 8px 0; }
 .board li + li { border-top: 1px dashed rgba(124, 168, 208, .5); }
-.board li::before { content: counter(place); width: 22px; flex: none; text-align: center; font: 700 1.5rem/1 var(--hand); color: var(--pencil); }
+.board li::before { content: counter(place); width: 22px; flex: none; text-align: center; font: 400 1.29rem/1 var(--hand); color: var(--pencil); }
 .board li:first-child::before { color: var(--accent); }
 .board li .grow { flex: 1; font-weight: 600; overflow-wrap: anywhere; }
 .board li .pts { font: 700 1.05rem var(--sans); white-space: nowrap; }
@@ -298,7 +298,7 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 #rematch-text { font-size: .95rem; }
 
 /* ---------- checking answers ---------- */
-.vote-timer { margin: 0 0 12px; font: 700 1.7rem/1 var(--hand); }
+.vote-timer { margin: 0 0 12px; font: 400 1.46rem/1 var(--hand); }
 .vote-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 10px; }
 .vote-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 12px; border: 1.5px solid var(--line); border-radius: var(--wobble); background: #fff; }
 .vote-item .vcat { font: 700 .74rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--pencil); }
@@ -364,7 +364,7 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 #start-btn { margin-top: 14px; }
 #next-btn { margin-bottom: 16px; }
 .join-box { margin-top: 14px; padding-top: 6px; }
-.modal-card h2 { font-size: 2.1rem; }
+.modal-card h2 { font-size: 1.8rem; }
 
 /* ---------- v3 ---------- */
 .top-actions { align-items: center; }
@@ -378,3 +378,18 @@ fieldset .check:has(input:checked) { background: rgba(44, 95, 138, .1); border-c
 .icon-btn[aria-pressed="false"] { opacity: .55; }
 #res-sub:empty, #vote-progress:empty, #start-hint:empty { display: none; }
 #wait-host { display: none !important; }
+
+/* ---------- chat pop-ups (above the Chat button) ---------- */
+.chat-pops { pointer-events: none; align-self: flex-end; display: flex; flex-direction: column; gap: 8px; width: min(320px, 82vw); }
+.chat-pop {
+  pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 12px 8px 8px;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: var(--card); border: 1.5px solid rgba(38, 40, 58, .8); border-radius: 16px 12px 16px 12px;
+  box-shadow: 0 10px 22px -12px rgba(38, 40, 58, .6); animation: rise .25s var(--ease) both;
+  transition: opacity .3s, transform .3s;
+}
+.chat-pop.out { opacity: 0; transform: translateY(6px); }
+.chat-pop .avatar { flex: none; }
+.cp-text { min-width: 0; }
+.cp-name { font-weight: 700; font-size: .82rem; line-height: 1.2; color: var(--accent); }
+.cp-body { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: .95rem; line-height: 1.3; }
